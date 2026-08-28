@@ -1,0 +1,2 @@
+function CategoryFilter({categories,value,onChange}){return <div className="flex flex-wrap gap-2" aria-label="Product categories">{categories.map(category=><button key={category} type="button" onClick={()=>onChange(category)} className={`rounded-full border px-4 py-2 text-xs font-medium transition sm:text-sm ${value===category?"border-black bg-black text-white":"border-neutral-200 bg-white text-neutral-600 hover:border-neutral-400 hover:text-black"}`}>{category}</button>)}</div>}
+export default CategoryFilter;
