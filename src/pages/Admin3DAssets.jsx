@@ -22,27 +22,6 @@ function Admin3DAssets() {
   const [rejectingId, setRejectingId] = useState("");
   const [rejectionReason, setRejectionReason] = useState("");
 
-  const loadAssets = async () => {
-    try {
-      setLoading(true);
-      setError("");
-
-      const response = await getAllThreeDAssets();
-
-      setAssets(response?.assets || []);
-    } catch (err) {
-      console.error("Failed to load 3D assets:", err);
-
-      setError(
-        err.response?.data?.error?.message ||
-          err.response?.data?.message ||
-          "Unable to load 3D assets.",
-      );
-    } finally {
-      setLoading(false);
-    }
-  };
-
   useEffect(() => {
     let active = true;
 
@@ -50,11 +29,15 @@ function Admin3DAssets() {
       try {
         const response = await getAllThreeDAssets();
 
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         setAssets(response?.assets || []);
       } catch (err) {
-        if (!active) return;
+        if (!active) {
+          return;
+        }
 
         console.error("Failed to load 3D assets:", err);
 
@@ -77,20 +60,44 @@ function Admin3DAssets() {
     };
   }, []);
 
+  const loadAssets = async () => {
+    try {
+      setLoading(true);
+      setError("");
+
+      const response = await getAllThreeDAssets();
+
+      setAssets(response?.assets || []);
+    } catch (err) {
+      console.error("Failed to load 3D assets:", err);
+
+      setError(
+        err.response?.data?.error?.message ||
+          err.response?.data?.message ||
+          "Unable to load 3D assets.",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleApprove = async (assetId) => {
     try {
       setReviewingId(assetId);
       setError("");
 
-      await reviewThreeDAsset(assetId, {
+      const response = await reviewThreeDAsset(assetId, {
         status: "approved",
       });
+
+      const updatedAsset = response?.asset;
 
       setAssets((currentAssets) =>
         currentAssets.map((asset) =>
           asset._id === assetId
             ? {
                 ...asset,
+                ...(updatedAsset || {}),
                 status: "approved",
               }
             : asset,
@@ -110,7 +117,9 @@ function Admin3DAssets() {
   };
 
   const handleReject = async (assetId) => {
-    if (!rejectionReason.trim()) {
+    const reason = rejectionReason.trim();
+
+    if (!reason) {
       setError("Please provide a rejection reason.");
       return;
     }
@@ -119,18 +128,21 @@ function Admin3DAssets() {
       setReviewingId(assetId);
       setError("");
 
-      await reviewThreeDAsset(assetId, {
+      const response = await reviewThreeDAsset(assetId, {
         status: "rejected",
-        reason: rejectionReason.trim(),
+        reason,
       });
+
+      const updatedAsset = response?.asset;
 
       setAssets((currentAssets) =>
         currentAssets.map((asset) =>
           asset._id === assetId
             ? {
                 ...asset,
+                ...(updatedAsset || {}),
                 status: "rejected",
-                rejectionReason: rejectionReason.trim(),
+                rejectionReason: reason,
               }
             : asset,
         ),
@@ -156,6 +168,10 @@ function Admin3DAssets() {
 
     if (!size) {
       return "0 MB";
+    }
+
+    if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(1)} KB`;
     }
 
     return `${(size / 1024 / 1024).toFixed(2)} MB`;
@@ -211,9 +227,12 @@ function Admin3DAssets() {
           <button
             type="button"
             onClick={loadAssets}
-            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 transition hover:border-neutral-400"
+            disabled={loading}
+            className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-neutral-200 bg-white px-4 text-sm font-medium text-neutral-700 transition hover:border-neutral-400 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            <RefreshCw className="h-4 w-4" />
+            <RefreshCw
+              className={`h-4 w-4 ${loading ? "animate-spin" : ""}`}
+            />
             Refresh
           </button>
         </div>
@@ -235,7 +254,7 @@ function Admin3DAssets() {
             <button
               type="button"
               onClick={() => setError("")}
-              className="text-red-400 hover:text-red-700"
+              className="text-red-400 transition hover:text-red-700"
             >
               <X className="h-4 w-4" />
             </button>
@@ -368,6 +387,28 @@ function Admin3DAssets() {
                         </div>
                       </div>
 
+                      <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                        <div className="rounded-2xl bg-neutral-50 p-4">
+                          <p className="text-[10px] uppercase tracking-wider text-neutral-400">
+                            Source
+                          </p>
+
+                          <p className="mt-1 text-sm font-semibold text-neutral-800">
+                            {asset.source || "Not specified"}
+                          </p>
+                        </div>
+
+                        <div className="rounded-2xl bg-neutral-50 p-4">
+                          <p className="text-[10px] uppercase tracking-wider text-neutral-400">
+                            License
+                          </p>
+
+                          <p className="mt-1 text-sm font-semibold text-neutral-800">
+                            {asset.license || "Not specified"}
+                          </p>
+                        </div>
+                      </div>
+
                       {asset.rejectionReason && (
                         <div className="mt-5 rounded-2xl border border-red-100 bg-red-50 p-4">
                           <p className="text-[10px] font-semibold uppercase tracking-wider text-red-500">
@@ -406,6 +447,7 @@ function Admin3DAssets() {
                                 disabled={isReviewing}
                                 onClick={() => {
                                   setRejectingId(asset._id);
+                                  setRejectionReason("");
                                   setError("");
                                 }}
                                 className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-red-200 bg-white px-5 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -459,7 +501,7 @@ function Admin3DAssets() {
                                     setRejectingId("");
                                     setRejectionReason("");
                                   }}
-                                  className="h-10 rounded-full border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-600"
+                                  className="h-10 rounded-full border border-neutral-200 bg-white px-5 text-sm font-medium text-neutral-600 transition hover:bg-neutral-100"
                                 >
                                   Cancel
                                 </button>

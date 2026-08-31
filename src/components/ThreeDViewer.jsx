@@ -59,6 +59,8 @@ function ViewerContent({ url, controlsRef }) {
         enableRotate
         enableZoom
         enablePan
+        enableDamping
+        dampingFactor={0.08}
         minDistance={1}
         maxDistance={10}
       />
@@ -70,58 +72,6 @@ function ThreeDViewer({ url, className = "" }) {
   const containerRef = useRef(null);
   const controlsRef = useRef(null);
   const [fullscreen, setFullscreen] = useState(false);
-
-  const resetView = () => {
-    if (!controlsRef.current) {
-      return;
-    }
-
-    controlsRef.current.reset();
-  };
-
-  const zoomIn = () => {
-    if (!controlsRef.current) {
-      return;
-    }
-
-    const controls = controlsRef.current;
-
-    if (controls.dollyIn) {
-      controls.dollyIn(1.2);
-      controls.update();
-    }
-  };
-
-  const zoomOut = () => {
-    if (!controlsRef.current) {
-      return;
-    }
-
-    const controls = controlsRef.current;
-
-    if (controls.dollyOut) {
-      controls.dollyOut(1.2);
-      controls.update();
-    }
-  };
-
-  const toggleFullscreen = async () => {
-    if (!containerRef.current) {
-      return;
-    }
-
-    try {
-      if (!document.fullscreenElement) {
-        await containerRef.current.requestFullscreen();
-        setFullscreen(true);
-      } else {
-        await document.exitFullscreen();
-        setFullscreen(false);
-      }
-    } catch (error) {
-      console.error("Fullscreen error:", error);
-    }
-  };
 
   useEffect(() => {
     const handleFullscreenChange = () => {
@@ -140,6 +90,52 @@ function ThreeDViewer({ url, className = "" }) {
       );
     };
   }, []);
+
+  const resetView = () => {
+    controlsRef.current?.reset();
+  };
+
+  const zoomIn = () => {
+    const controls = controlsRef.current;
+
+    if (!controls) {
+      return;
+    }
+
+    if (typeof controls.dollyIn === "function") {
+      controls.dollyIn(1.2);
+      controls.update();
+    }
+  };
+
+  const zoomOut = () => {
+    const controls = controlsRef.current;
+
+    if (!controls) {
+      return;
+    }
+
+    if (typeof controls.dollyOut === "function") {
+      controls.dollyOut(1.2);
+      controls.update();
+    }
+  };
+
+  const toggleFullscreen = async () => {
+    if (!containerRef.current) {
+      return;
+    }
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else {
+        await containerRef.current.requestFullscreen();
+      }
+    } catch (error) {
+      console.error("Fullscreen error:", error);
+    }
+  };
 
   if (!url) {
     return (
@@ -183,7 +179,7 @@ function ThreeDViewer({ url, className = "" }) {
       </div>
 
       <div className="absolute right-4 top-4 rounded-full bg-black/70 px-3 py-1.5 text-[10px] text-white backdrop-blur">
-        Drag to rotate · Scroll to zoom
+        Drag to rotate · Scroll to zoom · Right drag to pan
       </div>
 
       <div className="absolute bottom-4 left-1/2 flex -translate-x-1/2 items-center gap-1 rounded-full border border-neutral-200 bg-white/95 p-1 shadow-lg backdrop-blur">
@@ -191,6 +187,7 @@ function ThreeDViewer({ url, className = "" }) {
           type="button"
           onClick={resetView}
           title="Reset view"
+          aria-label="Reset view"
           className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 hover:text-black"
         >
           <RotateCcw className="h-4 w-4" />
@@ -200,6 +197,7 @@ function ThreeDViewer({ url, className = "" }) {
           type="button"
           onClick={zoomIn}
           title="Zoom in"
+          aria-label="Zoom in"
           className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 hover:text-black"
         >
           <ZoomIn className="h-4 w-4" />
@@ -209,6 +207,7 @@ function ThreeDViewer({ url, className = "" }) {
           type="button"
           onClick={zoomOut}
           title="Zoom out"
+          aria-label="Zoom out"
           className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 hover:text-black"
         >
           <ZoomOut className="h-4 w-4" />
@@ -217,10 +216,9 @@ function ThreeDViewer({ url, className = "" }) {
         <button
           type="button"
           onClick={toggleFullscreen}
-          title={
-            fullscreen
-              ? "Exit fullscreen"
-              : "Fullscreen"
+          title={fullscreen ? "Exit fullscreen" : "Fullscreen"}
+          aria-label={
+            fullscreen ? "Exit fullscreen" : "Fullscreen"
           }
           className="flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 hover:text-black"
         >
