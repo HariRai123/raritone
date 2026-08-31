@@ -215,7 +215,7 @@ function Admin3DAssets() {
             </div>
 
             <h1 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl">
-              3D Asset Review
+              3D Asset Review Panel
             </h1>
 
             <p className="mt-2 text-sm leading-6 text-neutral-500">
