@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { useSearchParams } from "react-router-dom";
 
+import ProductGrid from "../components/ProductGrid";
 import { getProducts } from "../services/productService";
 
 import { Button } from "@/components/ui/button";
@@ -128,19 +129,20 @@ const hierarchy = {
   },
 };
 
-const normalize = (value) =>
-  String(value ?? "")
+function normalize(value) {
+  return String(value || "")
     .trim()
     .toLowerCase()
     .replace(/\s+/g, "-");
+}
 
-const displayName = (value) => {
+function displayName(value) {
   if (!value) return "";
 
-  return String(value)
+  return value
     .replace(/-/g, " ")
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
-};
+}
 
 function Products() {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -153,47 +155,28 @@ function Products() {
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [sort, setSort] = useState("default");
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
-    const loadProducts = async () => {
+    const fetchProducts = async () => {
       try {
         setLoading(true);
         setError("");
 
         const data = await getProducts();
 
-        console.log("FRONTEND PRODUCTS:", data);
-        console.log("FRONTEND PRODUCT COUNT:", data.length);
-
-        const womenProducts = data.filter(
-          (product) =>
-            String(product.gender || "")
-              .trim()
-              .toLowerCase() === "women"
-        );
-
-        console.log(
-          "FRONTEND WOMEN PRODUCTS:",
-          womenProducts
-        );
-
-        console.log(
-          "FRONTEND WOMEN COUNT:",
-          womenProducts.length
-        );
-
-        setProducts(data);
+        setProducts(Array.isArray(data) ? data : []);
       } catch (err) {
-        console.error("LOAD PRODUCTS ERROR:", err);
+        console.error("Error fetching products:", err);
         setError("Unable to load products.");
       } finally {
         setLoading(false);
       }
     };
 
-    loadProducts();
+    fetchProducts();
   }, []);
 
   const availableCategories = useMemo(() => {
@@ -216,35 +199,26 @@ function Products() {
   }, [gender, category]);
 
   const filteredProducts = useMemo(() => {
-    const searchValue = search.trim().toLowerCase();
-
     let result = products.filter((product) => {
-      const productName = String(
-        product?.name || ""
-      ).toLowerCase();
-
-      const productBrand = String(
-        product?.brand || ""
-      ).toLowerCase();
+      const productName = String(product?.name || "").toLowerCase();
+      const productBrand = String(product?.brand || "").toLowerCase();
 
       const productGender = normalize(product?.gender);
       const productCategory = normalize(product?.category);
-      const productSubcategory = normalize(
-        product?.subcategory
-      );
+      const productSubcategory = normalize(product?.subcategory);
+
+      const searchValue = search.trim().toLowerCase();
 
       const matchesSearch =
-        !searchValue ||
+        searchValue === "" ||
         productName.includes(searchValue) ||
         productBrand.includes(searchValue);
 
       const matchesGender =
-        gender === "all" ||
-        productGender === gender;
+        gender === "all" || productGender === gender;
 
       const matchesCategory =
-        category === "all" ||
-        productCategory === category;
+        category === "all" || productCategory === category;
 
       const matchesSubcategory =
         subcategory === "all" ||
@@ -261,16 +235,14 @@ function Products() {
     if (sort === "price-low") {
       result.sort(
         (a, b) =>
-          Number(a.price || 0) -
-          Number(b.price || 0)
+          Number(a.price || 0) - Number(b.price || 0)
       );
     }
 
     if (sort === "price-high") {
       result.sort(
         (a, b) =>
-          Number(b.price || 0) -
-          Number(a.price || 0)
+          Number(b.price || 0) - Number(a.price || 0)
       );
     }
 
@@ -305,61 +277,60 @@ function Products() {
     newCategory = category,
     newSubcategory = subcategory,
   }) => {
-    const params = new URLSearchParams();
+    const params = new URLSearchParams(searchParams);
 
     const normalizedGender = normalize(newGender);
     const normalizedCategory = normalize(newCategory);
-    const normalizedSubcategory =
-      normalize(newSubcategory);
+    const normalizedSubcategory = normalize(newSubcategory);
 
-    if (
-      normalizedGender &&
-      normalizedGender !== "all"
-    ) {
+    if (!normalizedGender || normalizedGender === "all") {
+      params.delete("gender");
+    } else {
       params.set("gender", normalizedGender);
     }
 
     if (
-      normalizedCategory &&
-      normalizedCategory !== "all"
+      !normalizedCategory ||
+      normalizedCategory === "all"
     ) {
+      params.delete("category");
+    } else {
       params.set("category", normalizedCategory);
     }
 
     if (
-      normalizedSubcategory &&
-      normalizedSubcategory !== "all"
+      !normalizedSubcategory ||
+      normalizedSubcategory === "all"
     ) {
-      params.set(
-        "subcategory",
-        normalizedSubcategory
-      );
+      params.delete("subcategory");
+    } else {
+      params.set("subcategory", normalizedSubcategory);
     }
 
     setSearchParams(params);
   };
 
-  const updateGender = (value) => {
+  const updateGender = (newGender) => {
     updateFilters({
-      newGender: value,
+      newGender,
       newCategory: "all",
       newSubcategory: "all",
     });
   };
 
-  const updateCategory = (value) => {
+  const updateCategory = (newCategory) => {
     updateFilters({
       newGender: gender,
-      newCategory: value,
+      newCategory,
       newSubcategory: "all",
     });
   };
 
-  const updateSubcategory = (value) => {
+  const updateSubcategory = (newSubcategory) => {
     updateFilters({
       newGender: gender,
       newCategory: category,
-      newSubcategory: value,
+      newSubcategory,
     });
   };
 
@@ -370,48 +341,57 @@ function Products() {
   };
 
   const hasFilters =
-    search.trim() ||
+    search.trim() !== "" ||
     gender !== "all" ||
     category !== "all" ||
     subcategory !== "all" ||
     sort !== "default";
 
-  const collectionTitle =
-    subcategory !== "all"
-      ? displayName(subcategory)
-      : category !== "all"
-      ? displayName(category)
-      : gender !== "all"
-      ? displayName(gender)
-      : "All Products";
+  const collectionTitle = useMemo(() => {
+    if (subcategory !== "all") {
+      return displayName(subcategory);
+    }
+
+    if (category !== "all") {
+      return displayName(category);
+    }
+
+    if (gender !== "all") {
+      return displayName(gender);
+    }
+
+    return "All Products";
+  }, [gender, category, subcategory]);
 
   if (loading) {
     return (
       <section className="min-h-screen bg-white">
-        <div className="mx-auto max-w-7xl px-4 py-12">
+        <div className="mx-auto max-w-7xl px-4 py-12 sm:px-6 lg:px-8">
           <div className="mb-10 space-y-4">
             <div className="h-3 w-28 animate-pulse rounded bg-neutral-200" />
+
             <div className="h-10 w-56 animate-pulse rounded bg-neutral-200" />
+
             <div className="h-4 w-72 animate-pulse rounded bg-neutral-100" />
           </div>
 
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {Array.from({ length: 8 }).map(
-              (_, index) => (
-                <div
-                  key={index}
-                  className="overflow-hidden rounded-2xl border border-neutral-100"
-                >
-                  <div className="aspect-[4/5] animate-pulse bg-neutral-200" />
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {Array.from({ length: 8 }).map((_, index) => (
+              <div
+                key={index}
+                className="overflow-hidden rounded-2xl border border-neutral-100"
+              >
+                <div className="aspect-[4/5] animate-pulse bg-neutral-200" />
 
-                  <div className="space-y-3 p-4">
-                    <div className="h-3 w-20 animate-pulse rounded bg-neutral-200" />
-                    <div className="h-4 w-3/4 animate-pulse rounded bg-neutral-200" />
-                    <div className="h-4 w-20 animate-pulse rounded bg-neutral-200" />
-                  </div>
+                <div className="space-y-3 p-4">
+                  <div className="h-3 w-20 animate-pulse rounded bg-neutral-200" />
+
+                  <div className="h-4 w-3/4 animate-pulse rounded bg-neutral-200" />
+
+                  <div className="h-4 w-20 animate-pulse rounded bg-neutral-200" />
                 </div>
-              )
-            )}
+              </div>
+            ))}
           </div>
         </div>
       </section>
@@ -420,11 +400,13 @@ function Products() {
 
   if (error) {
     return (
-      <section className="flex min-h-[70vh] items-center justify-center">
-        <div className="text-center">
-          <X className="mx-auto mb-4 h-8 w-8 text-red-500" />
+      <section className="flex min-h-[70vh] items-center justify-center bg-white px-4">
+        <div className="max-w-md text-center">
+          <div className="mx-auto mb-5 flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-500">
+            <X className="h-6 w-6" />
+          </div>
 
-          <h2 className="text-xl font-semibold">
+          <h2 className="text-xl font-semibold text-neutral-900">
             Something went wrong
           </h2>
 
@@ -433,10 +415,9 @@ function Products() {
           </p>
 
           <Button
-            className="mt-5 rounded-full"
-            onClick={() =>
-              window.location.reload()
-            }
+            type="button"
+            className="mt-6 rounded-full"
+            onClick={() => window.location.reload()}
           >
             Try Again
           </Button>
@@ -447,70 +428,73 @@ function Products() {
 
   return (
     <section className="min-h-screen bg-white">
-      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8 lg:py-14">
+      <div className="mx-auto max-w-7xl px-4 py-8 sm:px-6 sm:py-10 lg:px-8 lg:py-14">
         <div className="flex flex-col gap-6 border-b border-neutral-200 pb-8 lg:flex-row lg:items-end lg:justify-between">
           <div>
-            <p className="mb-3 text-xs font-semibold uppercase tracking-[0.25em] text-neutral-500">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.25em] text-neutral-500 sm:text-xs">
               OUR COLLECTION
             </p>
 
-            <h1 className="text-4xl font-semibold tracking-tight text-neutral-950">
+            <h1 className="text-3xl font-semibold tracking-tight text-neutral-950 sm:text-4xl lg:text-5xl">
               {collectionTitle}
             </h1>
 
-            <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-500">
-              Discover the latest styles from
-              Raritone. Find something that fits your
-              style and explore it with Virtual Try-On.
+            <p className="mt-3 max-w-xl text-sm leading-6 text-neutral-500 sm:text-base">
+              Discover the latest styles from Raritone.
+              Find something that fits your style and explore
+              it with Virtual Try-On.
             </p>
           </div>
 
-          <div className="text-sm text-neutral-500">
-            <span className="font-semibold text-black">
+          <div className="flex items-center gap-2 text-sm text-neutral-500">
+            <span className="font-medium text-neutral-900">
               {filteredProducts.length}
-            </span>{" "}
+            </span>
+
             {filteredProducts.length === 1
               ? "product"
               : "products"}
           </div>
         </div>
 
-        <div className="py-6">
+        <div className="sticky top-16 z-30 -mx-4 border-b border-neutral-100 bg-white/95 px-4 py-4 backdrop-blur sm:static sm:mx-0 sm:border-0 sm:px-0 sm:py-6">
           <div className="flex flex-col gap-4">
-            <div className="flex flex-col gap-3 lg:flex-row">
-              <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+              <div className="relative flex-1 lg:max-w-xl">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-400" />
 
                 <Input
+                  type="search"
                   value={search}
                   onChange={(event) =>
                     setSearch(event.target.value)
                   }
                   placeholder="Search products or brands..."
-                  className="h-11 rounded-full pl-10"
+                  className="h-11 rounded-full border-neutral-200 bg-neutral-50 pl-10 pr-10 text-sm focus-visible:ring-1 focus-visible:ring-black"
                 />
 
                 {search && (
                   <button
                     type="button"
+                    aria-label="Clear search"
                     onClick={() => setSearch("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2"
+                    className="absolute right-3 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-neutral-400 hover:bg-neutral-200 hover:text-neutral-700"
                   >
-                    <X className="h-4 w-4 text-neutral-400" />
+                    <X className="h-3.5 w-3.5" />
                   </button>
                 )}
               </div>
 
-              <div className="flex gap-2 overflow-x-auto">
+              <div className="flex gap-2 overflow-x-auto pb-1 lg:pb-0">
                 <Button
                   type="button"
+                  variant={gender === "all" ? "default" : "outline"}
                   onClick={() => updateGender("all")}
-                  variant={
+                  className={`h-10 shrink-0 rounded-full px-4 text-xs sm:text-sm ${
                     gender === "all"
-                      ? "default"
-                      : "outline"
-                  }
-                  className="shrink-0 rounded-full"
+                      ? "bg-black text-white hover:bg-neutral-800"
+                      : "border-neutral-200 bg-white"
+                  }`}
                 >
                   All
                 </Button>
@@ -520,15 +504,15 @@ function Products() {
                     <Button
                       key={key}
                       type="button"
-                      onClick={() =>
-                        updateGender(key)
-                      }
                       variant={
-                        gender === key
-                          ? "default"
-                          : "outline"
+                        gender === key ? "default" : "outline"
                       }
-                      className="shrink-0 rounded-full"
+                      onClick={() => updateGender(key)}
+                      className={`h-10 shrink-0 rounded-full px-4 text-xs sm:text-sm ${
+                        gender === key
+                          ? "bg-black text-white hover:bg-neutral-800"
+                          : "border-neutral-200 bg-white"
+                      }`}
                     >
                       {item.label}
                     </Button>
@@ -536,38 +520,38 @@ function Products() {
                 )}
               </div>
 
-              <div className="relative">
-                <ArrowUpDown className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+              <div className="relative shrink-0">
+                <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
 
                 <select
                   value={sort}
                   onChange={(event) =>
                     setSort(event.target.value)
                   }
-                  className="h-10 rounded-full border border-neutral-200 bg-white pl-9 pr-5"
+                  className="h-10 w-full appearance-none rounded-full border border-neutral-200 bg-white pl-9 pr-8 text-xs font-medium outline-none transition focus:border-black sm:w-48 sm:text-sm"
                 >
                   <option value="default">
-                    Recommended
+                    Sort: Recommended
                   </option>
-                  <option value="newest">
-                    Newest
-                  </option>
+
+                  <option value="newest">Newest</option>
+
                   <option value="price-low">
                     Price: Low to High
                   </option>
+
                   <option value="price-high">
                     Price: High to Low
                   </option>
-                  <option value="name">
-                    Name: A-Z
-                  </option>
+
+                  <option value="name">Name: A-Z</option>
                 </select>
               </div>
             </div>
 
             {gender !== "all" && (
-              <div className="flex items-center gap-2 overflow-x-auto border-t pt-4">
-                <span className="shrink-0 text-xs uppercase tracking-wider text-neutral-400">
+              <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-100 pt-4">
+                <span className="shrink-0 text-xs font-medium uppercase tracking-wider text-neutral-400">
                   Categories
                 </span>
 
@@ -576,14 +560,14 @@ function Products() {
                     key={item}
                     type="button"
                     variant={
+                      category === item ? "default" : "outline"
+                    }
+                    onClick={() => updateCategory(item)}
+                    className={`h-9 shrink-0 rounded-full px-4 text-xs ${
                       category === item
-                        ? "default"
-                        : "outline"
-                    }
-                    onClick={() =>
-                      updateCategory(item)
-                    }
-                    className="shrink-0 rounded-full"
+                        ? "bg-black text-white hover:bg-neutral-800"
+                        : "border-neutral-200 bg-white"
+                    }`}
                   >
                     {item === "all"
                       ? `All ${displayName(gender)}`
@@ -596,12 +580,12 @@ function Products() {
             {gender !== "all" &&
               category !== "all" &&
               availableSubcategories.length > 0 && (
-                <div className="flex items-center gap-2 overflow-x-auto border-t pt-4">
-                  <span className="shrink-0 text-xs uppercase tracking-wider text-neutral-400">
+                <div className="flex items-center gap-2 overflow-x-auto border-t border-neutral-100 pt-4">
+                  <span className="shrink-0 text-xs font-medium uppercase tracking-wider text-neutral-400">
                     {displayName(category)}
                   </span>
 
-                  <ChevronRight className="h-4 w-4 text-neutral-300" />
+                  <ChevronRight className="h-4 w-4 shrink-0 text-neutral-300" />
 
                   <Button
                     type="button"
@@ -613,34 +597,40 @@ function Products() {
                     onClick={() =>
                       updateSubcategory("all")
                     }
-                    className="shrink-0 rounded-full"
+                    className={`h-9 shrink-0 rounded-full px-4 text-xs ${
+                      subcategory === "all"
+                        ? "bg-black text-white hover:bg-neutral-800"
+                        : "border-neutral-200 bg-white"
+                    }`}
                   >
                     All
                   </Button>
 
-                  {availableSubcategories.map(
-                    (item) => {
-                      const value = normalize(item);
+                  {availableSubcategories.map((item) => {
+                    const value = normalize(item);
 
-                      return (
-                        <Button
-                          key={item}
-                          type="button"
-                          variant={
-                            subcategory === value
-                              ? "default"
-                              : "outline"
-                          }
-                          onClick={() =>
-                            updateSubcategory(value)
-                          }
-                          className="shrink-0 rounded-full"
-                        >
-                          {item}
-                        </Button>
-                      );
-                    }
-                  )}
+                    return (
+                      <Button
+                        key={item}
+                        type="button"
+                        variant={
+                          subcategory === value
+                            ? "default"
+                            : "outline"
+                        }
+                        onClick={() =>
+                          updateSubcategory(value)
+                        }
+                        className={`h-9 shrink-0 rounded-full px-4 text-xs ${
+                          subcategory === value
+                            ? "bg-black text-white hover:bg-neutral-800"
+                            : "border-neutral-200 bg-white"
+                        }`}
+                      >
+                        {item}
+                      </Button>
+                    );
+                  })}
                 </div>
               )}
 
@@ -651,28 +641,55 @@ function Products() {
                   Filters:
                 </span>
 
+                {search && (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1"
+                  >
+                    Search: {search}
+                  </Badge>
+                )}
+
                 {gender !== "all" && (
-                  <Badge className="rounded-full">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1 capitalize"
+                  >
                     {displayName(gender)}
                   </Badge>
                 )}
 
                 {category !== "all" && (
-                  <Badge className="rounded-full">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1 capitalize"
+                  >
                     {displayName(category)}
                   </Badge>
                 )}
 
                 {subcategory !== "all" && (
-                  <Badge className="rounded-full">
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1 capitalize"
+                  >
                     {displayName(subcategory)}
+                  </Badge>
+                )}
+
+                {sort !== "default" && (
+                  <Badge
+                    variant="secondary"
+                    className="rounded-full px-3 py-1"
+                  >
+                    Sorted
                   </Badge>
                 )}
 
                 <button
                   type="button"
                   onClick={clearFilters}
-                  className="text-xs underline"
+                  className="text-xs font-medium text-neutral-600 underline underline-offset-4 hover:text-black"
                 >
                   Clear all
                 </button>
@@ -681,69 +698,45 @@ function Products() {
           </div>
         </div>
 
-        <div className="mb-5 text-sm text-neutral-500">
-          Showing{" "}
-          <span className="font-semibold text-black">
-            {filteredProducts.length}
-          </span>{" "}
-          results
+        <div className="mb-5 flex items-center justify-between">
+          <p className="text-sm text-neutral-500">
+            Showing{" "}
+            <span className="font-medium text-neutral-900">
+              {filteredProducts.length}
+            </span>{" "}
+            {filteredProducts.length === 1
+              ? "result"
+              : "results"}
+          </p>
         </div>
 
         {filteredProducts.length === 0 ? (
           <div className="rounded-2xl border border-neutral-200 bg-neutral-50 px-6 py-16 text-center">
-            <Search className="mx-auto h-6 w-6 text-neutral-400" />
+            <div className="mx-auto max-w-md">
+              <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white shadow-sm">
+                <Search className="h-5 w-5 text-neutral-400" />
+              </div>
 
-            <h2 className="mt-5 text-lg font-semibold">
-              No products found
-            </h2>
+              <h2 className="mt-5 text-lg font-semibold text-neutral-900">
+                No products found
+              </h2>
 
-            <p className="mt-2 text-sm text-neutral-500">
-              No products match the current filters.
-            </p>
+              <p className="mt-2 text-sm leading-6 text-neutral-500">
+                We couldn't find any products matching
+                your current filters.
+              </p>
 
-            <Button
-              type="button"
-              onClick={clearFilters}
-              className="mt-6 rounded-full"
-            >
-              Clear Filters
-            </Button>
+              <Button
+                type="button"
+                onClick={clearFilters}
+                className="mt-6 rounded-full"
+              >
+                Clear Filters
+              </Button>
+            </div>
           </div>
         ) : (
-          <div className="grid grid-cols-2 gap-4 md:grid-cols-3 lg:grid-cols-4">
-            {filteredProducts.map((product) => (
-              <div
-                key={product._id}
-                className="overflow-hidden rounded-2xl border border-neutral-200 bg-white"
-              >
-                <img
-                  src={product.image}
-                  alt={product.name}
-                  className="aspect-[4/5] w-full object-cover"
-                />
-
-                <div className="p-4">
-                  <p className="text-xs text-neutral-500">
-                    {product.brand}
-                  </p>
-
-                  <h3 className="mt-1 font-semibold text-neutral-900">
-                    {product.name}
-                  </h3>
-
-                  <p className="mt-2 font-medium">
-                    ₹{product.price}
-                  </p>
-
-                  <p className="mt-1 text-xs text-neutral-500">
-                    {displayName(product.gender)} ·{" "}
-                    {displayName(product.category)} ·{" "}
-                    {displayName(product.subcategory)}
-                  </p>
-                </div>
-              </div>
-            ))}
-          </div>
+          <ProductGrid products={filteredProducts} />
         )}
       </div>
     </section>
