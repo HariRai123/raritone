@@ -12,12 +12,10 @@ import {
   RotateCcw,
   Box,
   Image as ImageIcon,
-  Loader2,
 } from "lucide-react";
 
 import { getProductById } from "../services/productService";
 import { getProductThreeDAsset } from "../services/threeDAssetService";
-import { createThreeDTryOnSession } from "../services/threeDTryOnService";
 import { useCart } from "../context/CartContext";
 import { useWishlist } from "../context/WishlistContext";
 
@@ -44,7 +42,6 @@ function ProductDetails() {
   const [threeDLoading, setThreeDLoading] = useState(false);
   const [threeDError, setThreeDError] = useState("");
   const [viewMode, setViewMode] = useState("2d");
-  const [tryOnLoading, setTryOnLoading] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -108,6 +105,9 @@ function ProductDetails() {
     };
   }, [id]);
 
+  const stock = Number(product?.stock || 0);
+  const price = Number(product?.price || 0);
+
   const handleQuantityDecrease = () => {
     setQuantity((current) => Math.max(1, current - 1));
   };
@@ -138,39 +138,16 @@ function ProductDetails() {
     navigate("/cart");
   };
 
-  const handleTryOn = async () => {
-    if (!threeDAsset?._id || tryOnLoading) {
+  const handleTryOn = () => {
+    if (!product || stock <= 0) {
       return;
     }
 
-    try {
-      setTryOnLoading(true);
-      setThreeDError("");
-
-      const response = await createThreeDTryOnSession({
-        productId: product._id,
-        threeDAssetId: threeDAsset._id,
-      });
-
-      const session = response?.session;
-
-      if (!session?._id) {
-        throw new Error("3D try-on session was not created.");
-      }
-
-      navigate(`/3d-try-on?id=${session._id}`);
-    } catch (err) {
-      console.error("CREATE 3D TRY-ON SESSION ERROR:", err);
-
-      setThreeDError(
-        err.response?.data?.error?.message ||
-          err.response?.data?.message ||
-          err.message ||
-          "Unable to start 3D try-on.",
-      );
-    } finally {
-      setTryOnLoading(false);
-    }
+    navigate("/try-on", {
+      state: {
+        product,
+      },
+    });
   };
 
   const handleWishlist = () => {
@@ -245,12 +222,10 @@ function ProductDetails() {
     );
   }
 
-  const stock = Number(product.stock || 0);
-  const price = Number(product.price || 0);
   const wishlisted = isWishlisted(product._id);
 
   const isAlreadyInCart = cart.some(
-    (item) => item.productId === product._id,
+    (item) => item.productId === product._id
   );
 
   const threeDUrl = threeDAsset?.assetUrl || "";
@@ -508,21 +483,12 @@ function ProductDetails() {
               <Button
                 type="button"
                 variant="outline"
-                disabled={stock <= 0 || !hasThreeDAsset || tryOnLoading}
+                disabled={stock <= 0}
                 onClick={handleTryOn}
                 className="h-12 rounded-full border-neutral-300 text-sm font-semibold"
               >
-                {tryOnLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Starting Try-On...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {hasThreeDAsset ? "Try On" : "3D Try-On Coming Soon"}
-                  </>
-                )}
+                <Sparkles className="mr-2 h-4 w-4" />
+                Try On
               </Button>
 
               <Button
@@ -601,22 +567,11 @@ function ProductDetails() {
               <Button
                 type="button"
                 onClick={handleTryOn}
-                disabled={!hasThreeDAsset || tryOnLoading}
-                className="h-12 rounded-full bg-white px-7 text-sm font-semibold text-black hover:bg-neutral-200 disabled:cursor-not-allowed disabled:opacity-50"
+                disabled={stock <= 0}
+                className="h-12 rounded-full bg-white px-7 text-sm font-semibold text-black hover:bg-neutral-200"
               >
-                {tryOnLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Starting Try-On...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="mr-2 h-4 w-4" />
-                    {hasThreeDAsset
-                      ? "Try This Product"
-                      : "3D Try-On Coming Soon"}
-                  </>
-                )}
+                <Sparkles className="mr-2 h-4 w-4" />
+                Try This Product
               </Button>
             </div>
           </div>

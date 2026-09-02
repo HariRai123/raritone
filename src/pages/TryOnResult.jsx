@@ -1,5 +1,12 @@
 import { useEffect, useState } from "react";
-import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Link,
+  useLocation,
+  useNavigate,
+  useParams,
+  useSearchParams,
+} from "react-router-dom";
+
 import {
   ArrowLeft,
   Camera,
@@ -20,50 +27,108 @@ import { useCart } from "../context/CartContext";
 
 function TryOnResult() {
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const { sessionId: routeSessionId } = useParams();
+
   const [searchParams] = useSearchParams();
+
   const { addToCart } = useCart();
 
-  const sessionId = searchParams.get("id");
+  const sessionId =
+    routeSessionId || searchParams.get("id");
 
-  const [session, setSession] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [retrying, setRetrying] = useState(false);
-  const [error, setError] = useState("");
+  const initialSession =
+    location.state?.session || null;
+
+  const [session, setSession] =
+    useState(initialSession);
+
+  const [loading, setLoading] =
+    useState(!initialSession);
+
+  const [retrying, setRetrying] =
+    useState(false);
+
+  const [error, setError] =
+    useState("");
 
   useEffect(() => {
     let cancelled = false;
+    let timeoutId = null;
 
     const fetchSession = async () => {
       if (!sessionId) {
         if (!cancelled) {
-          setError("Try-on session ID is missing.");
+          setError(
+            "Try-on session ID is missing."
+          );
+
           setLoading(false);
         }
+
         return;
       }
 
       try {
-        const response = await getTryOnSession(sessionId);
+        const response =
+          await getTryOnSession(
+            sessionId
+          );
 
-        if (!response?.result) {
-          throw new Error("Try-on session was not found.");
+        const currentSession =
+          response?.result;
+
+        if (!currentSession) {
+          throw new Error(
+            "Try-on session was not found."
+          );
         }
 
-        if (!cancelled) {
-          setSession(response.result);
-          setError("");
+        if (cancelled) {
+          return;
+        }
+
+        setSession(currentSession);
+        setError("");
+
+        const isProcessing =
+          currentSession.status === "pending" ||
+          currentSession.status === "processing";
+
+        const isCompletedWithoutImage =
+          currentSession.status === "completed" &&
+          !currentSession.resultImageReference;
+
+        if (
+          isProcessing ||
+          isCompletedWithoutImage
+        ) {
           setLoading(false);
+
+          timeoutId = setTimeout(
+            fetchSession,
+            1500
+          );
+
+          return;
         }
+
+        setLoading(false);
       } catch (err) {
-        console.error("TRY-ON RESULT ERROR:", err);
+        console.error(
+          "TRY-ON RESULT ERROR:",
+          err
+        );
 
         if (!cancelled) {
           setError(
             err.response?.data?.error?.message ||
               err.response?.data?.message ||
               err.message ||
-              "Unable to load try-on result.",
+              "Unable to load try-on result."
           );
+
           setLoading(false);
         }
       }
@@ -73,12 +138,19 @@ function TryOnResult() {
 
     return () => {
       cancelled = true;
+
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [sessionId]);
 
   const refreshSession = async () => {
     if (!sessionId) {
-      setError("Try-on session ID is missing.");
+      setError(
+        "Try-on session ID is missing."
+      );
+
       return;
     }
 
@@ -86,21 +158,29 @@ function TryOnResult() {
       setLoading(true);
       setError("");
 
-      const response = await getTryOnSession(sessionId);
+      const response =
+        await getTryOnSession(
+          sessionId
+        );
 
       if (!response?.result) {
-        throw new Error("Try-on session was not found.");
+        throw new Error(
+          "Try-on session was not found."
+        );
       }
 
       setSession(response.result);
     } catch (err) {
-      console.error("TRY-ON REFRESH ERROR:", err);
+      console.error(
+        "TRY-ON REFRESH ERROR:",
+        err
+      );
 
       setError(
         err.response?.data?.error?.message ||
           err.response?.data?.message ||
           err.message ||
-          "Unable to load try-on result.",
+          "Unable to load try-on result."
       );
     } finally {
       setLoading(false);
@@ -109,7 +189,10 @@ function TryOnResult() {
 
   const handleRetry = async () => {
     if (!sessionId) {
-      setError("Try-on session ID is missing.");
+      setError(
+        "Try-on session ID is missing."
+      );
+
       return;
     }
 
@@ -117,35 +200,51 @@ function TryOnResult() {
       setRetrying(true);
       setError("");
 
-      const response = await retryTryOn(sessionId);
+      const response =
+        await retryTryOn(sessionId);
 
       if (response?.result) {
         setSession(response.result);
       }
 
-      navigate(`/try-on?id=${sessionId}`, {
-        replace: true,
-      });
+      setRetrying(false);
+
+      setLoading(false);
     } catch (err) {
-      console.error("TRY-ON RESULT RETRY ERROR:", err);
+      console.error(
+        "TRY-ON RESULT RETRY ERROR:",
+        err
+      );
 
       setError(
         err.response?.data?.error?.message ||
           err.response?.data?.message ||
           err.message ||
-          "Unable to retry try-on.",
+          "Unable to retry try-on."
       );
-    } finally {
+
       setRetrying(false);
     }
   };
 
   const handleAddToCart = () => {
-    if (!session?.productId) {
+    const productId =
+      typeof session?.productId ===
+      "object"
+        ? session.productId._id ||
+          session.productId.id
+        : session?.productId;
+
+    if (!productId) {
+      setError(
+        "Product information is unavailable."
+      );
+
       return;
     }
 
-    addToCart(session.productId, 1);
+    addToCart(productId, 1);
+
     navigate("/cart");
   };
 
@@ -161,7 +260,8 @@ function TryOnResult() {
             </h1>
 
             <p className="mt-2 text-sm text-red-700">
-              We could not find the try-on session.
+              We could not find the try-on
+              session.
             </p>
 
             <Link
@@ -177,7 +277,7 @@ function TryOnResult() {
     );
   }
 
-  if (loading) {
+  if (loading && !session) {
     return (
       <main className="min-h-screen bg-neutral-50 px-4 py-12">
         <div className="mx-auto max-w-6xl">
@@ -188,7 +288,9 @@ function TryOnResult() {
 
             <div className="space-y-5">
               <div className="h-10 w-64 animate-pulse rounded bg-neutral-200" />
+
               <div className="h-20 animate-pulse rounded-2xl bg-neutral-200" />
+
               <div className="h-12 animate-pulse rounded-full bg-neutral-200" />
             </div>
           </div>
@@ -237,7 +339,8 @@ function TryOnResult() {
 
   if (session?.status === "failed") {
     const retryLimitReached =
-      session.errorCode === "RETRY_LIMIT_REACHED";
+      session.errorCode ===
+      "RETRY_LIMIT_REACHED";
 
     return (
       <main className="min-h-screen bg-neutral-50">
@@ -296,11 +399,15 @@ function TryOnResult() {
                 >
                   <RefreshCw
                     className={`h-4 w-4 ${
-                      retrying ? "animate-spin" : ""
+                      retrying
+                        ? "animate-spin"
+                        : ""
                     }`}
                   />
 
-                  {retrying ? "Retrying..." : "Try Again"}
+                  {retrying
+                    ? "Retrying..."
+                    : "Try Again"}
                 </button>
               )}
 
@@ -341,16 +448,26 @@ function TryOnResult() {
             </h1>
 
             <p className="mt-4 text-sm leading-6 text-neutral-500">
-              Please keep this page open while your try-on is being processed.
+              Please keep this page open while
+              your try-on is being processed.
             </p>
 
             <div className="mx-auto mt-8 h-1.5 max-w-xs overflow-hidden rounded-full bg-neutral-100">
               <div className="h-full w-1/2 animate-pulse rounded-full bg-black" />
             </div>
 
+            <button
+              type="button"
+              onClick={refreshSession}
+              className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-black"
+            >
+              <RefreshCw className="h-4 w-4" />
+              Check Status
+            </button>
+
             <Link
               to="/try-on/history"
-              className="mt-8 inline-flex items-center gap-2 text-sm font-medium text-neutral-600 hover:text-black"
+              className="mt-4 flex items-center justify-center gap-2 text-sm font-medium text-neutral-600 hover:text-black"
             >
               View Try-On History
               <ArrowLeft className="h-4 w-4 rotate-180" />
@@ -361,7 +478,10 @@ function TryOnResult() {
     );
   }
 
-  const product = session?.productId;
+  const product =
+    typeof session?.productId === "object"
+      ? session.productId
+      : null;
 
   return (
     <main className="min-h-screen bg-neutral-50">
@@ -392,7 +512,8 @@ function TryOnResult() {
           </h1>
 
           <p className="mt-2 text-sm text-neutral-500">
-            Here's how the selected garment looks on you.
+            Here's how the selected garment
+            looks on you.
           </p>
         </div>
 
@@ -401,7 +522,9 @@ function TryOnResult() {
             <div className="relative bg-neutral-100">
               {session.resultImageReference ? (
                 <img
-                  src={session.resultImageReference}
+                  src={
+                    session.resultImageReference
+                  }
                   alt="Virtual try-on result"
                   className="max-h-[800px] w-full object-contain"
                 />
@@ -413,6 +536,15 @@ function TryOnResult() {
                     <p className="mt-3 text-sm text-neutral-500">
                       Result image is unavailable.
                     </p>
+
+                    <button
+                      type="button"
+                      onClick={refreshSession}
+                      className="mt-4 inline-flex items-center gap-2 rounded-full bg-black px-5 py-2.5 text-xs font-semibold text-white"
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      Refresh
+                    </button>
                   </div>
                 </div>
               )}
@@ -432,11 +564,13 @@ function TryOnResult() {
                 </p>
 
                 <div className="mt-5 flex gap-4">
-                  <img
-                    src={product.image}
-                    alt={product.name}
-                    className="h-28 w-20 rounded-2xl object-cover"
-                  />
+                  {product.image && (
+                    <img
+                      src={product.image}
+                      alt={product.name}
+                      className="h-28 w-20 rounded-2xl object-cover"
+                    />
+                  )}
 
                   <div className="min-w-0 flex-1">
                     {product.brand && (
@@ -452,7 +586,7 @@ function TryOnResult() {
                     <p className="mt-2 text-base font-medium">
                       ₹
                       {Number(
-                        product.price || 0,
+                        product.price || 0
                       ).toLocaleString("en-IN")}
                     </p>
                   </div>
@@ -474,7 +608,8 @@ function TryOnResult() {
                 <DetailRow
                   label="AI Model"
                   value={
-                    session.aiModelVersion || "VTON"
+                    session.aiModelVersion ||
+                    "VTON"
                   }
                 />
 
@@ -483,7 +618,7 @@ function TryOnResult() {
                   value={
                     session.processingTime
                       ? `${Number(
-                          session.processingTime,
+                          session.processingTime
                         ).toFixed(2)} sec`
                       : "—"
                   }
@@ -527,7 +662,10 @@ function TryOnResult() {
   );
 }
 
-function DetailRow({ label, value }) {
+function DetailRow({
+  label,
+  value,
+}) {
   return (
     <div className="flex items-center justify-between border-b border-neutral-100 pb-3 last:border-0 last:pb-0">
       <span className="text-sm text-neutral-500">

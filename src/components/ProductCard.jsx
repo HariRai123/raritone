@@ -1,4 +1,9 @@
-import { Heart, ShoppingBag, Sparkles, ArrowUpRight } from "lucide-react";
+import {
+  Heart,
+  ShoppingBag,
+  Sparkles,
+  ArrowUpRight,
+} from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 
 import { useCart } from "../context/CartContext";
@@ -33,7 +38,8 @@ function ProductCard({ product, priority = false }) {
 
   const finalPrice =
     numericDiscount > 0
-      ? numericPrice - (numericPrice * numericDiscount) / 100
+      ? numericPrice -
+        (numericPrice * numericDiscount) / 100
       : numericPrice;
 
   const isOutOfStock = numericStock <= 0;
@@ -66,15 +72,20 @@ function ProductCard({ product, priority = false }) {
     event.preventDefault();
     event.stopPropagation();
 
-    navigate(`/try-on?product=${_id}`);
+    if (isOutOfStock) {
+      return;
+    }
+
+    navigate("/try-on", {
+      state: {
+        product,
+      },
+    });
   };
 
   return (
     <Card className="group relative overflow-hidden rounded-2xl border border-neutral-200 bg-white p-0 shadow-none transition-all duration-300 hover:-translate-y-1 hover:shadow-xl">
-
-      {/* PRODUCT IMAGE */}
       <div className="relative aspect-[4/5] overflow-hidden bg-neutral-100">
-
         <Link
           to={`/products/${_id}`}
           className="block h-full w-full"
@@ -91,7 +102,6 @@ function ProductCard({ product, priority = false }) {
           />
         </Link>
 
-        {/* CATEGORY */}
         {category && (
           <Badge
             variant="secondary"
@@ -101,7 +111,6 @@ function ProductCard({ product, priority = false }) {
           </Badge>
         )}
 
-        {/* WISHLIST */}
         <Button
           type="button"
           variant="secondary"
@@ -113,7 +122,9 @@ function ProductCard({ product, priority = false }) {
               : `Add ${name} to wishlist`
           }
           className={`absolute right-3 top-3 z-20 h-9 w-9 rounded-full bg-white/90 shadow-sm backdrop-blur hover:bg-white ${
-            wishlisted ? "text-red-500" : "text-neutral-700"
+            wishlisted
+              ? "text-red-500"
+              : "text-neutral-700"
           }`}
         >
           <Heart
@@ -123,7 +134,6 @@ function ProductCard({ product, priority = false }) {
           />
         </Button>
 
-        {/* OUT OF STOCK */}
         {isOutOfStock && (
           <div className="absolute inset-0 z-10 flex items-center justify-center bg-black/40">
             <Badge className="rounded-full bg-white px-4 py-2 text-black hover:bg-white">
@@ -132,7 +142,6 @@ function ProductCard({ product, priority = false }) {
           </div>
         )}
 
-        {/* TRY ON */}
         {!isOutOfStock && (
           <div className="absolute bottom-3 left-3 right-3 z-10 translate-y-2 opacity-0 transition-all duration-300 group-hover:translate-y-0 group-hover:opacity-100">
             <Button
@@ -147,17 +156,13 @@ function ProductCard({ product, priority = false }) {
         )}
       </div>
 
-      {/* PRODUCT INFORMATION */}
       <div className="space-y-4 p-4 sm:p-5">
-
-        {/* BRAND */}
         {brand && (
           <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-neutral-500 sm:text-xs">
             {brand}
           </p>
         )}
 
-        {/* NAME */}
         <div className="flex items-start justify-between gap-3">
           <Link
             to={`/products/${_id}`}
@@ -177,7 +182,6 @@ function ProductCard({ product, priority = false }) {
           </Link>
         </div>
 
-        {/* PRICE */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <span className="text-base font-semibold text-neutral-950 sm:text-lg">
@@ -198,10 +202,7 @@ function ProductCard({ product, priority = false }) {
           )}
         </div>
 
-        {/* ACTIONS */}
         <div className="flex gap-2">
-
-          {/* VIEW PRODUCT */}
           <Link
             to={`/products/${_id}`}
             className="inline-flex h-10 flex-1 items-center justify-center rounded-full border border-neutral-300 px-3 text-xs font-medium text-neutral-900 transition-colors hover:bg-neutral-100 sm:text-sm"
@@ -209,7 +210,6 @@ function ProductCard({ product, priority = false }) {
             View Product
           </Link>
 
-          {/* ADD TO CART */}
           <Button
             type="button"
             disabled={isOutOfStock || isAddedToCart}
@@ -238,7 +238,6 @@ function ProductCard({ product, priority = false }) {
                   : "Add"}
             </span>
           </Button>
-
         </div>
       </div>
     </Card>
