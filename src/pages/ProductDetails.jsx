@@ -78,7 +78,7 @@ function ProductDetails() {
 
           if (threeDErr.response?.status !== 404) {
             console.error("Error fetching 3D asset:", threeDErr);
-            setThreeDError("Unable to load the 3D preview.");
+            setThreeDError("Please Login or Signup to view 3d asset.");
           }
 
           setThreeDAsset(null);
